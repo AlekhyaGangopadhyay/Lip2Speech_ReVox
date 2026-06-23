@@ -1,0 +1,26 @@
+# Virtual environment
+venv/
+.venv/
+ENV/
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE configurations
+.vscode/
+.idea/
+
+# Local media uploads and prediction outputs (EXCLUDED as requested)
+uploads/
+outputs/
+
+# Heavy local model weights and landmarks data
+lipreading_model.pth
+shape_predictor_68_face_landmarks.dat
+
+# Temp / OS files
+.DS_Store
+Thumbs.db
+~$*
