@@ -47,16 +47,25 @@ app.jinja_loader = ChoiceLoader([
 class LipReadingModel(nn.Module):
     def __init__(self, num_classes=NUM_CLASSES):
         super(LipReadingModel, self).__init__()
+        # For offline local execution, initialize mobilenet_v2 with random weights.
+        # This prevents PyTorch from attempting to download ImageNet weights from the internet.
+        # Custom fine-tuned weights are loaded immediately after initialization using state_dict.
         try:
-            mobilenet = models.mobilenet_v2(weights=models.MobileNet_V2_Weights.DEFAULT)
-        except AttributeError:
-            mobilenet = models.mobilenet_v2(pretrained=True)
+            mobilenet = models.mobilenet_v2(weights=None)
+        except (AttributeError, TypeError):
+            mobilenet = models.mobilenet_v2(pretrained=False)
         self.feature_extractor = mobilenet.features
         self.pool = nn.AdaptiveAvgPool2d((1, 1))
         
-        # Frozen backbones significantly lowers training time
-        for param in self.feature_extractor.parameters():
-            param.requires_grad = False
+        # FINE-TUNING IMPROVEMENT: Unfreeze the final CNN blocks of MobileNetV2 (from block 14 onwards)
+        # This allows the CNN features to adapt from general ImageNet features to close-up mouth features.
+        for name, param in self.feature_extractor.named_parameters():
+            # MobileNetV2 has 19 feature blocks; we unfreeze blocks 14 to 18 (top convolutional blocks)
+            block_idx = int(name.split('.')[0]) if name.split('.')[0].isdigit() else 0
+            if block_idx >= 14:
+                param.requires_grad = True
+            else:
+                param.requires_grad = False
             
         self.lstm = nn.LSTM(input_size=1280, hidden_size=256, num_layers=2, 
                             batch_first=True, bidirectional=True)
@@ -96,10 +105,20 @@ def get_model():
 def get_t5():
     global _t5_model, _t5_tokenizer
     if _t5_model is None or _t5_tokenizer is None:
-        from transformers import T5ForConditionalGeneration, T5Tokenizer
-        model_name = "t5-base"
-        _t5_tokenizer = T5Tokenizer.from_pretrained(model_name)
-        _t5_model = T5ForConditionalGeneration.from_pretrained(model_name).to(device)
+        try:
+            from transformers import T5ForConditionalGeneration, T5Tokenizer
+            model_name = "t5-base"
+            _t5_tokenizer = T5Tokenizer.from_pretrained(model_name)
+            _t5_model = T5ForConditionalGeneration.from_pretrained(model_name).to(device)
+        except Exception as e:
+            print("=" * 60)
+            print(f"  WARNING: Failed to fetch/load T5 model from Hugging Face: {e}")
+            print("  The application will automatically fall back to raw predictions.")
+            print("=" * 60)
+            _t5_model = "FAILED"
+            _t5_tokenizer = "FAILED"
+    if _t5_model == "FAILED":
+        return None, None
     return _t5_model, _t5_tokenizer
 
 # ─── Inference helpers ─────────────────────────────────────────────────────────
@@ -273,8 +292,15 @@ def predict():
 
         # 4. Optional LLM Refinement
         refined_text = predicted_text
+        llm_used_successfully = False
         if use_llm:
-            refined_text = refine_text_with_llm(predicted_text)
+            t5_m, _ = get_t5()
+            if t5_m is not None:
+                refined_text = refine_text_with_llm(predicted_text)
+                llm_used_successfully = True
+            else:
+                refined_text = predicted_text
+                llm_used_successfully = False
 
         text_to_speak = refined_text if refined_text else predicted_text
         if not text_to_speak:
@@ -287,7 +313,7 @@ def predict():
             "raw_text": predicted_text if predicted_text else "(no speech detected)",
             "text": text_to_speak,
             "audio_url": f"/audio/{job_id}.wav",
-            "llm_used": use_llm
+            "llm_used": llm_used_successfully
         })
 
     except FileNotFoundError as e:

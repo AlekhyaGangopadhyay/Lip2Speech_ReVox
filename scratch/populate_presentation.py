@@ -18,6 +18,90 @@ if not os.path.exists(pptx_path):
 prs = Presentation(pptx_path)
 print(f"Loaded presentation template: {pptx_path}")
 
+# Function to duplicate slide at runtime
+def duplicate_slide(prs, source_idx, target_idx):
+    from copy import deepcopy
+    source_slide = prs.slides[source_idx]
+    blank_layout = prs.slide_layouts[6]
+    new_slide = prs.slides.add_slide(blank_layout)
+    
+    # Copy shapes from source_slide to new_slide
+    for shape in source_slide.shapes:
+        el = shape.element
+        new_el = deepcopy(el)
+        new_slide.shapes._spTree.insert_element_before(new_el, 'p:extLst')
+        
+    # Move the new slide to target_idx
+    sldIdLst = prs.slides._sldIdLst
+    new_slide_element = sldIdLst[-1]
+    sldIdLst.remove(new_slide_element)
+    sldIdLst.insert(target_idx, new_slide_element)
+    return new_slide
+
+# Helper to update table cell text and formatting
+def update_table_cell(cell, text, font_name="Inter", font_size=Pt(11), bold=False, italic=False):
+    cell.text = text
+    if cell.text_frame.paragraphs:
+        p = cell.text_frame.paragraphs[0]
+        p.font.name = font_name
+        p.font.size = font_size
+        p.font.bold = bold
+        p.font.italic = italic
+
+# Function to create and style a table programmatically
+def create_pptx_table(slide, rows, cols, left, top, width, height, data, headers=None, col_widths=None, font_size=Pt(11)):
+    table_shape = slide.shapes.add_table(rows, cols, left, top, width, height)
+    table = table_shape.table
+    
+    if col_widths:
+        for c_idx, w in enumerate(col_widths):
+            table.columns[c_idx].width = w
+            
+    start_row = 0
+    if headers:
+        for c_idx, h_text in enumerate(headers):
+            cell = table.cell(0, c_idx)
+            cell.text = h_text
+            cell.fill.solid()
+            # Premium purple accent (#6C63FF) for headers
+            cell.fill.fore_color.rgb = RGBColor(108, 99, 255)
+            p = cell.text_frame.paragraphs[0]
+            p.font.name = "Outfit"
+            p.font.size = font_size + Pt(1.5)
+            p.font.bold = True
+            p.font.color.rgb = RGBColor(255, 255, 255)
+        start_row = 1
+        
+    for r_idx, row_data in enumerate(data):
+        for c_idx, val in enumerate(row_data):
+            cell = table.cell(r_idx + start_row, c_idx)
+            cell.text = str(val)
+            cell.fill.solid()
+            # Subtle background color alternating/soft-dark
+            if (r_idx + start_row) % 2 == 1:
+                cell.fill.fore_color.rgb = RGBColor(26, 22, 38)
+            else:
+                cell.fill.fore_color.rgb = RGBColor(18, 15, 28)
+                
+            p = cell.text_frame.paragraphs[0]
+            p.font.name = "Inter"
+            p.font.size = font_size
+            p.font.color.rgb = RGBColor(226, 226, 240)
+            
+            # Subtle styling for baseline/metrics row
+            if "Baseline" in str(val) or "Selected" in str(val) or "Optimal" in str(val):
+                p.font.bold = True
+                cell.fill.solid()
+                cell.fill.fore_color.rgb = RGBColor(40, 30, 60) # highlighted background
+                
+            if str(val).startswith("1.7991") or str(val).startswith("2.11s") or str(val).startswith("82.3%") or str(val).startswith("93.6%"):
+                p.font.bold = True
+                p.font.color.rgb = RGBColor(34, 211, 238) # Highlight metrics with cyan pulse color
+    return table_shape
+
+# Duplicate slide 8 (index 7) and insert it as the new slide 8 (index 7)
+duplicate_slide(prs, 7, 7)
+
 # Helper function to clear extra runs and set text in paragraph
 def set_paragraph_text(p, text):
     if not p.runs:
@@ -88,10 +172,11 @@ for idx, slide in enumerate(prs.slides, 1):
 
     # Slide 4: Problem Statement
     elif idx == 4:
-        # Clear any programmatically added textboxes from previous run to avoid duplicates
         shapes_to_remove = []
         for shape in slide.shapes:
             if shape.has_text_frame and shape.name.startswith("TextBox") and "Problem Statement" not in shape.text_frame.text:
+                shapes_to_remove.append(shape)
+            elif shape.shape_type == 6: # Group shape
                 shapes_to_remove.append(shape)
         for shape in shapes_to_remove:
             try:
@@ -99,71 +184,17 @@ for idx, slide in enumerate(prs.slides, 1):
             except:
                 pass
                 
-        # 3-Column Problem Statement Layout
-        cols_data = [
-            {
-                "title": "1. Social Barrier",
-                "subtitle": "Daily Isolation",
-                "desc": "Manual typing is too slow, disrupting conversational flow and causing social isolation.",
-                "impact": "Impact: Speech-impaired individuals face high communication barriers."
-            },
-            {
-                "title": "2. Environmental Barrier",
-                "subtitle": "Acoustic Failures",
-                "desc": "Voice recognition fails in loud environments (factories) or silent zones (hospitals).",
-                "impact": "Impact: Traditional voice tools become unusable when needed most."
-            },
-            {
-                "title": "3. Technical Barrier",
-                "subtitle": "The Hardware Wall",
-                "desc": "Heavy 3D CNN architectures require expensive cloud GPUs, leaking user data privacy.",
-                "impact": "Impact: Prevents fast, offline, and secure execution on local edge devices."
-            }
+        headers = [
+            "1. Social Barrier (Daily Isolation)",
+            "2. Environmental Barrier (Acoustic Failures)",
+            "3. Technical Barrier (The Hardware Wall)"
         ]
-        
-        col_width = Inches(5.0)
-        col_gap = Inches(0.8)
-        left_margin = Inches(1.0)
-        top_pos = Inches(2.5)
-        height = Inches(5.5)
-        
-        for c_idx, data in enumerate(cols_data):
-            col_left = left_margin + c_idx * (col_width + col_gap)
-            txBox = slide.shapes.add_textbox(col_left, top_pos, col_width, height)
-            tf = txBox.text_frame
-            tf.word_wrap = True
-            
-            # Title
-            p0 = tf.paragraphs[0]
-            p0.text = data["title"]
-            p0.font.size = Pt(20)
-            p0.font.bold = True
-            p0.font.name = "Outfit"
-            p0.space_after = Pt(4)
-            
-            # Subtitle
-            p1 = tf.add_paragraph()
-            p1.text = data["subtitle"]
-            p1.font.size = Pt(16)
-            p1.font.bold = True
-            p1.font.name = "Outfit"
-            p1.font.color.rgb = RGBColor(0, 102, 204) # Deep blue
-            p1.space_after = Pt(12)
-            
-            # Description
-            p2 = tf.add_paragraph()
-            p2.text = "• " + data["desc"]
-            p2.font.size = Pt(14)
-            p2.font.name = "Inter"
-            p2.space_after = Pt(12)
-            
-            # Impact
-            p3 = tf.add_paragraph()
-            p3.text = "• " + data["impact"]
-            p3.font.size = Pt(14)
-            p3.font.italic = True
-            p3.font.name = "Inter"
-            p3.font.color.rgb = RGBColor(128, 128, 128) # Grey
+        descriptions = [
+            "• Challenge: Manual typing is too slow, disrupting conversational flow and causing social isolation.\n\n• Impact: Speech-impaired individuals face high communication barriers.",
+            "• Challenge: Voice recognition fails in loud environments (factories) or silent zones (hospitals).\n\n• Impact: Traditional voice tools become unusable when needed most.",
+            "• Challenge: Heavy 3D CNN architectures require expensive cloud GPUs, leaking user data privacy.\n\n• Impact: Prevents fast, offline, and secure execution on local edge devices."
+        ]
+        create_pptx_table(slide, 2, 3, Inches(0.5), Inches(2.2), Inches(12.33), Inches(4.5), [descriptions], headers=headers, col_widths=[Inches(4.11), Inches(4.11), Inches(4.11)])
 
     # Slide 5: Motivation
     elif idx == 5:
@@ -216,56 +247,78 @@ for idx, slide in enumerate(prs.slides, 1):
 
     # Slide 7: Existing Solutions
     elif idx == 7:
+        shapes_to_remove = []
+        for shape in slide.shapes:
+            if shape.has_text_frame and shape.name.startswith("TextBox") and "Existing Solutions" not in shape.text_frame.text:
+                shapes_to_remove.append(shape)
+            elif shape.shape_type == 6: # Group shape
+                shapes_to_remove.append(shape)
+        for shape in shapes_to_remove:
+            try:
+                slide.shapes._spTree.remove(shape._element)
+            except:
+                pass
+                
+        headers = [
+            "1. LipNet (CTC Models)",
+            "2. AV Transformers",
+            "3. Cloud APIs"
+        ]
+        descriptions = [
+            "• Model: LipNet (Character-level CTC)\n\n• Difficulty: High Word Error Rate on short words.\n\n• Compiler Wall: Requires complex C++ dlib/CMake bindings, causing edge setup failure.",
+            "• Models: AV-HubERT, Lip2Wav\n\n• Difficulty: Gigantic model parameter size & storage footprint.\n\n• GPU Wall: Requires desktop GPUs; completely freezes standard edge CPUs.",
+            "• Models: Proprietary cloud speech APIs\n\n• Difficulty: Requires continuous, high-bandwidth web connection.\n\n• Privacy Wall: Sends private video/audio files to cloud, risking data leaks."
+        ]
+        create_pptx_table(slide, 2, 3, Inches(0.5), Inches(2.2), Inches(12.33), Inches(4.5), [descriptions], headers=headers, col_widths=[Inches(4.11), Inches(4.11), Inches(4.11)])
+
+    # Slide 8: Novelty & Core Contributions
+    elif idx == 8:
         for shape in slide.shapes:
             if shape.has_text_frame:
                 text = shape.text_frame.text.strip()
-                if "Analysis Phase" in text or "LipNet" in text:
-                    shape.text_frame.text = "1. LipNet (CTC)"
+                if "Brainstorming Sessions:" in text:
+                    shape.text_frame.text = "C++ Compiler Independent Mouth Detection:"
                     p = shape.text_frame.paragraphs[0]
                     p.font.size = Pt(18)
                     p.font.bold = True
                     p.font.name = "Outfit"
-                elif "Analyze sales performance" in text or "character-level CTC" in text:
+                elif "Collaborate to generate" in text:
                     shape.text_frame.clear()
                     tf = shape.text_frame
                     tf.word_wrap = True
                     p0 = tf.paragraphs[0]
-                    p0.text = "• Model: LipNet (Character-level CTC)\n• Difficulty: High Word Error Rate on short words.\n• Compiler Wall: Requires C++ dlib/CMake bindings, causing edge setup failure."
-                    p0.font.size = Pt(11)
+                    p0.text = "• Swapped compile-heavy dlib/CMake dependencies for standard OpenCV Haar cascades.\n• Mathematically targets and rescales mouth bounding boxes to 112x112 px.\n• 100% offline edge execution runs seamlessly without local compiler setup."
+                    p0.font.size = Pt(13)
                     p0.font.name = "Inter"
-                    
-                elif "Strategy Development" in text or "Transformers" in text:
-                    shape.text_frame.text = "2. AV Transformers"
+                elif "Testing and Refinement:" in text:
+                    shape.text_frame.text = "CPU-Optimal Architecture & LLM Grammar Correction:"
                     p = shape.text_frame.paragraphs[0]
                     p.font.size = Pt(18)
                     p.font.bold = True
                     p.font.name = "Outfit"
-                elif "Create new strategies using" in text or "AV-HubERT" in text:
+                elif "Pilot the proposed" in text:
                     shape.text_frame.clear()
                     tf = shape.text_frame
                     tf.word_wrap = True
                     p0 = tf.paragraphs[0]
-                    p0.text = "• Models: AV-HubERT, Lip2Wav\n• Difficulty: Gigantic model parameter size & storage footprint.\n• GPU Wall: Requires desktop GPUs; completely freezes standard edge CPUs."
-                    p0.font.size = Pt(11)
+                    p0.text = "• MobileNetV2 features + BiLSTM sequence reader runs under 2.0s on standard edge CPUs.\n• Integrates local sequence-to-sequence T5-Base Transformer model to correct raw text predictions.\n• Spelling refinement & duplicate word collapsing boosts final Word Accuracy from 84.2% to 94.8%."
+                    p0.font.size = Pt(13)
                     p0.font.name = "Inter"
-                    
-                elif "Implementation Plan" in text or "Cloud" in text:
-                    shape.text_frame.text = "3. Cloud APIs"
+                elif "Methodology" in text:
+                    shape.text_frame.text = "Novelty & Core Contributions"
                     p = shape.text_frame.paragraphs[0]
-                    p.font.size = Pt(18)
+                    p.font.size = Pt(36)
                     p.font.bold = True
                     p.font.name = "Outfit"
-                elif "Create a timeline with" in text or "Proprietary" in text:
-                    shape.text_frame.clear()
-                    tf = shape.text_frame
-                    tf.word_wrap = True
-                    p0 = tf.paragraphs[0]
-                    p0.text = "• Models: Proprietary cloud speech APIs\n• Difficulty: Requires continuous, high-bandwidth web connection.\n• Privacy Wall: Sends private video/audio files to cloud, risking data leaks."
-                    p0.font.size = Pt(11)
-                    p0.font.name = "Inter"
 
-    # Slide 8: Methodology & System Architecture
-    elif idx == 8:
+        # Add novelty flowchart diagram on the right side
+        novelty_flow_path = os.path.join("static", "novelty_flowchart.png")
+        if os.path.exists(novelty_flow_path):
+            slide.shapes.add_picture(novelty_flow_path, Inches(13.0), Inches(2.2), width=Inches(5.8), height=Inches(6.5))
+            print("  Inserted novelty_flowchart.png successfully.")
+
+    # Slide 9: Methodology & System Architecture
+    elif idx == 9:
         for shape in slide.shapes:
             if shape.has_text_frame:
                 text = shape.text_frame.text.strip()
@@ -304,92 +357,58 @@ for idx, slide in enumerate(prs.slides, 1):
             slide.shapes.add_picture(system_arch_path, Inches(13.0), Inches(2.2), width=Inches(5.8), height=Inches(6.5))
             print("  Inserted system_architecture.png successfully.")
 
-    # Slide 9: Data Analysis & Ablation Study
-    elif idx == 9:
-        for shape in slide.shapes:
-            if shape.has_text_frame:
-                text = shape.text_frame.text.strip()
-                if "Over the past year" in text:
-                    shape.text_frame.clear()
-                    tf = shape.text_frame
-                    tf.word_wrap = True
-                    p0 = tf.paragraphs[0]
-                    p0.text = "We benchmarked our model on the GRID Corpus (33,000 video-transcript pairs) to find the optimal configuration for edge-deployment. Shortening temporal frame context decreases compute time but increases loss drastically, proving a 25-frame context is necessary."
-                    p0.font.size = Pt(13)
-                    p0.font.name = "Inter"
-                elif "Product 1" in text:
-                    shape.text_frame.text = "Baseline (Frozen CNN + 25f)\nCompute Time: 13.9s | Training Loss: 1.72\nBest speed/accuracy balance."
-                    p = shape.text_frame.paragraphs[0]
-                    p.font.size = Pt(12)
-                    p.font.name = "Inter"
-                elif "Product 2" in text:
-                    shape.text_frame.text = "Ablation A (Unfrozen CNN + 25f)\nCompute Time: 15.1s | Training Loss: 1.69\nMarginally better loss but too heavy for CPU."
-                    p = shape.text_frame.paragraphs[0]
-                    p.font.size = Pt(12)
-                    p.font.name = "Inter"
-                elif "Product 3" in text:
-                    shape.text_frame.text = "Ablation B (Starved Context - 10f)\nCompute Time: 5.7s | Training Loss: 2.85\nFastest compute, but suffers high loss."
-                    p = shape.text_frame.paragraphs[0]
-                    p.font.size = Pt(12)
-                    p.font.name = "Inter"
-                    
-        # Add performance dashboard diagram on the left side
-        if os.path.exists(perf_dashboard_path):
-            slide.shapes.add_picture(perf_dashboard_path, Inches(0.5), Inches(2.2), width=Inches(11.5), height=Inches(8.0))
-            print("  Inserted performance_dashboard.png successfully.")
-
-    # Slide 10: Result & Metrics
+    # Slide 10: Data Analysis & Ablation Study
     elif idx == 10:
+        shapes_to_remove = []
         for shape in slide.shapes:
-            if shape.has_text_frame:
-                text = shape.text_frame.text.strip()
-                if "Increased Sales Figures:" in text:
-                    shape.text_frame.text = "High-Accuracy Speech Reconstruction:"
-                    p = shape.text_frame.paragraphs[0]
-                    p.font.size = Pt(18)
-                    p.font.bold = True
-                    p.font.name = "Outfit"
-                elif "Target a 25% increase" in text:
-                    shape.text_frame.clear()
-                    tf = shape.text_frame
-                    tf.word_wrap = True
-                    p0 = tf.paragraphs[0]
-                    p0.text = "• The T5 LLM grammar corrector resolves spelling and syntax errors from raw sequence-to-sequence decodings.\n• Collapses repetitive characters (e.g. converting 'set set white' into 'set white') for natural voice speech."
-                    p0.font.size = Pt(13)
-                    p0.font.name = "Inter"
-                    
-                elif "Enhanced Market Reach:" in text:
-                    shape.text_frame.text = "Real-Time Edge Latency:"
-                    p = shape.text_frame.paragraphs[0]
-                    p.font.size = Pt(18)
-                    p.font.bold = True
-                    p.font.name = "Outfit"
-                elif "Expand market reach" in text:
-                    shape.text_frame.clear()
-                    tf = shape.text_frame
-                    tf.word_wrap = True
-                    p0 = tf.paragraphs[0]
-                    p0.text = "• Core model prediction and post-processing takes under 2.0 seconds on standard consumer laptop CPUs.\n• Zero latency variance because it runs entirely locally offline without network requests."
-                    p0.font.size = Pt(13)
-                    p0.font.name = "Inter"
-                    
-                elif "Improved Customer Engagement:" in text:
-                    shape.text_frame.text = "Cross-Platform Deployment:"
-                    p = shape.text_frame.paragraphs[0]
-                    p.font.size = Pt(18)
-                    p.font.bold = True
-                    p.font.name = "Outfit"
-                elif "Foster stronger relationships" in text:
-                    shape.text_frame.clear()
-                    tf = shape.text_frame
-                    tf.word_wrap = True
-                    p0 = tf.paragraphs[0]
-                    p0.text = "• Packaged within a lightweight, CPU-optimized Docker container using a Flask server architecture.\n• Deployed on local host (port 5000) and Hugging Face Spaces (port 7860)."
-                    p0.font.size = Pt(13)
-                    p0.font.name = "Inter"
+            if shape.has_text_frame and shape.name.startswith("TextBox") and "Data Analysis" not in shape.text_frame.text:
+                shapes_to_remove.append(shape)
+            elif shape.shape_type == 6: # Group shape
+                shapes_to_remove.append(shape)
+        for shape in shapes_to_remove:
+            try:
+                slide.shapes._spTree.remove(shape._element)
+            except:
+                pass
+                
+        if os.path.exists(perf_dashboard_path):
+            slide.shapes.add_picture(perf_dashboard_path, Inches(0.5), Inches(2.2), width=Inches(5.8), height=Inches(4.5))
+            print("  Inserted performance_dashboard.png successfully.")
+            
+        headers = ["Configuration", "CNN Backbone", "Frame Count", "Training Loss", "Epoch Latency", "Edge Suitability"]
+        data = [
+            ["1. Baseline (Selected)", "Layer 14+ Unfreeze", "25 frames", "1.7991", "2.11s", "Optimal (Best speed/accuracy balance)"],
+            ["2. Ablation A (Unfrozen)", "100% Unfrozen CNN", "25 frames", "1.7598", "2.60s", "Poor (High compile/run latency)"],
+            ["3. Ablation B (Starved)", "Starved Context", "10 frames", "2.9216", "0.91s", "Unusable (High loss error spike)"]
+        ]
+        create_pptx_table(slide, 4, 6, Inches(6.5), Inches(2.2), Inches(6.3), Inches(4.5), data, headers=headers,
+                          col_widths=[Inches(1.5), Inches(1.1), Inches(0.9), Inches(0.9), Inches(0.8), Inches(1.1)], font_size=Pt(8.5))
 
-    # Slide 11: Future Scope
+    # Slide 11: Result & Metrics
     elif idx == 11:
+        shapes_to_remove = []
+        for shape in slide.shapes:
+            if shape.has_text_frame and shape.name.startswith("TextBox") and "Result" not in shape.text_frame.text:
+                shapes_to_remove.append(shape)
+            elif shape.shape_type == 6: # Group shape
+                shapes_to_remove.append(shape)
+        for shape in shapes_to_remove:
+            try:
+                slide.shapes._spTree.remove(shape._element)
+            except:
+                pass
+                
+        headers = ["Evaluation Phase / Model State", "Cross-Entropy Loss", "Word Accuracy (WAR)", "Character Error Rate (CER)", "Inference Latency (CPU)"]
+        data = [
+            ["Training Phase", "0.4171", "85.4%", "7.2%", "N/A (Offline Batch)"],
+            ["Testing / Val (Raw Prediction)", "0.4200", "82.3%", "8.5%", "~1.8 seconds"],
+            ["Testing / Val (T5 LLM Refined)", "N/A", "93.6%", "3.2%", "~2.0 seconds (Total Run)"]
+        ]
+        create_pptx_table(slide, 4, 5, Inches(0.5), Inches(2.2), Inches(12.33), Inches(4.5), data, headers=headers,
+                          col_widths=[Inches(3.3), Inches(2.25), Inches(2.25), Inches(2.25), Inches(2.28)])
+
+    # Slide 12: Future Scope
+    elif idx == 12:
         for shape in slide.shapes:
             if shape.has_text_frame:
                 text = shape.text_frame.text.strip()
@@ -411,8 +430,8 @@ for idx, slide in enumerate(prs.slides, 1):
                         p.font.size = Pt(16)
                         p.font.name = "Inter"
 
-    # Slide 12: Video Solution and Github Repo
-    elif idx == 12:
+    # Slide 13: Video Solution and Github Repo
+    elif idx == 13:
         for shape in slide.shapes:
             if shape.has_text_frame:
                 text = shape.text_frame.text.strip()
@@ -434,8 +453,8 @@ for idx, slide in enumerate(prs.slides, 1):
                     p1.font.name = "Outfit"
                     p1.space_before = Pt(20)
 
-    # Slide 13: Conclusion & References
-    elif idx == 13:
+    # Slide 14: Conclusion & References
+    elif idx == 14:
         for shape in slide.shapes:
             if shape.has_text_frame:
                 text = shape.text_frame.text.strip()

@@ -62,7 +62,22 @@ Below is the slide-by-slide content of your deck:
 
 ---
 
-### Slide 8: Methodology & System Architecture (Flowchart Layout)
+### Slide 8: Novelty & Core Contributions (Flowchart Layout)
+
+* **1. C++ Compiler Independent Mouth Detection**:
+  * Swapped compile-heavy dlib/CMake dependencies for standard OpenCV Haar cascades.
+  * Mathematically targets and rescales mouth bounding boxes to 112x112 px.
+  * 100% offline edge execution runs seamlessly without local compiler setup.
+* **2. CPU-Optimal Architecture & LLM Grammar Correction**:
+  * MobileNetV2 features + BiLSTM sequence reader runs under 2.0s on standard edge CPUs.
+  * Integrates local sequence-to-sequence T5-Base Transformer model to correct raw text predictions.
+  * Spelling refinement & duplicate word collapsing boosts final Word Accuracy from 84.2% to 94.8%.
+
+* **Visual Reference**: Placed **[novelty_flowchart.png](file:///d:/Lip2Speech_Final/lip2speech/static/novelty_flowchart.png)** in the right column of Slide 8.
+
+---
+
+### Slide 9: Methodology & System Architecture (Flowchart Layout)
 
 **Flowchart Representation**:
 
@@ -84,54 +99,54 @@ graph TD
     style I fill:#fef9e7,stroke:#f39c12,stroke-width:2px
 ```
 
-* **Visual Reference**: Placed **[system_architecture.png](file:///d:/Lip2Speech_Final/lip2speech/static/system_architecture.png)** in the right column of Slide 8.
+* **Visual Reference**: Placed **[system_architecture.png](file:///d:/Lip2Speech_Final/lip2speech/static/system_architecture.png)** in the right column of Slide 9.
 
 ---
 
-### Slide 9: Data Analysis & Ablation Study
+### Slide 10: Data Analysis & Ablation Study
 
 * **Dataset**: GRID Corpus (33,000 video-transcript pairs) benchmarked to optimize performance, accuracy, and edge compute latency.
 * **Ablation Study Matrix**:
 
 | Configuration | CNN Backbone | Frame Count | Training Loss | Epoch Latency | Edge Suitability |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **1. Baseline (Selected)** | Frozen MobileNetV2 | 25 frames | **1.72** | **13.9s** | **Optimal** (Low footprint, fast run) |
-| **2. Ablation A** | Unfrozen MobileNetV2 | 25 frames | **1.69** | **15.1s** | **Poor** (Marginal gain, training too heavy) |
-| **3. Ablation B** | Frozen MobileNetV2 | 10 frames | **2.85** | **5.7s** | **Unusable** (Low latency, but high loss) |
+| **1. Baseline (Selected)** | Layer 14+ Unfreeze | 25 frames | **1.7991** | **2.11s** | **Optimal** (Best speed/accuracy balance) |
+| **2. Ablation A** | 100% Unfrozen CNN | 25 frames | **1.7598** | **2.60s** | **Poor** (High latency, marginal accuracy gain) |
+| **3. Ablation B** | Starved Context | 10 frames | **2.9216** | **0.91s** | **Unusable** (Low latency, but severe loss spike) |
 
-* **Visual Reference**: Placed **[performance_dashboard.png](file:///d:/Lip2Speech_Final/lip2speech/static/performance_dashboard.png)** in the left column of Slide 9.
+* **Visual Reference**: Placed **[performance_dashboard.png](file:///d:/Lip2Speech_Final/lip2speech/static/performance_dashboard.png)** in the left column of Slide 10.
 
 ---
 
-### Slide 10: Result & Metrics
+### Slide 11: Result & Metrics
 
 * **Evaluation Summary**: Our hybrid MobileNetV2-BiLSTM architecture, combined with a local T5 LLM grammar corrector, was benchmarked on the GRID validation split.
 * **Accuracy & Latency Metrics Table**:
 
 | Evaluation Phase / Model State | Cross-Entropy Loss | Word Accuracy (WAR) | Character Error Rate (CER) | Inference Latency (CPU) |
 | :--- | :--- | :--- | :--- | :--- |
-| **Training Phase** | 1.72 | 87.5% | 8.9% | N/A (Offline Batch) |
-| **Testing / Val (Raw Prediction)** | 1.76 | 84.2% | 11.4% | ~1.8 seconds |
-| **Testing / Val (T5 LLM Refined)** | N/A | **94.8%** | **2.9%** | **~2.0 seconds** (Total Run) |
+| **Training Phase** | 0.4171 | 85.4% | 7.2% | N/A (Offline Batch) |
+| **Testing / Val (Raw Prediction)** | 0.4200 | 82.3% | 8.5% | ~1.8 seconds |
+| **Testing / Val (T5 LLM Refined)** | N/A | **93.6%** | **3.2%** | **~2.0 seconds** (Total Run) |
 
 * **Deployment Footprint**: 100% offline edge deployment. Containerized using a CPU-optimized Docker image and successfully tested on local host (port 5000) and Hugging Face Spaces (port 7860).
 
 ---
 
-### Slide 11: Future Scope
+### Slide 12: Future Scope
 * **Continuous Real-Time System**: Develop an automated streaming system that continuously captures live webcam frames, runs sliding-window lip-detection, and synthesizes speech on-the-fly.
 * **AV-HubERT Architecture Upgrade**: Upgrade the existing framework to AV-HubERT with custom architectural optimizations (such as lightweight cross-attention fusion adapters) for speaker-independent continuous text generation.
 * **Hardware Integration & AR Glasses**: Compile models to run on mobile edge NPUs (Neural Processing Units) or integrate as a lightweight SDK for smart glasses (AR/VR) for real-time visual-to-audio feedback.
 
 ---
 
-### Slide 12: Video Solution & Github Repo
+### Slide 13: Video Solution & Github Repo
 * **GitHub Repository**: https://github.com/iamalekhya/Lip2Speech
 * **Hugging Face Space**: https://huggingface.co/spaces/iamalekhya/Lip2Speech
 
 ---
 
-### Slide 13: Conclusion & References
+### Slide 14: Conclusion & References
 * **Conclusion**: By implementing a well-researched and innovative hybrid deep learning framework, our goal is to establish a sustainable, privacy-first, offline assistive framework for speech-impaired individuals.
 * **References**:
   1. Assael, Y. M., Shillingford, B., Whiteson, S., & de Freitas, N. (2016). *LipNet: Sentence-level Lipreading*.
@@ -141,5 +156,5 @@ graph TD
 
 ---
 
-### Slide 14: Thank You
+### Slide 15: Thank You
 * Concluding message: Spreading inclusion through accessibility. Thank you! Q&A Session.

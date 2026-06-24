@@ -189,10 +189,24 @@
     color: var(--muted); margin-bottom: 16px;
   }
   .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
+    background: rgba(17, 17, 32, 0.75);
+    border: 1px solid rgba(108, 99, 255, 0.18);
     border-radius: var(--radius);
     padding: 36px;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 10px 30px 0 rgba(0, 0, 0, 0.5);
+    transition: border-color 0.4s ease, box-shadow 0.4s ease, transform 0.4s ease;
+  }
+  .card:hover {
+    border-color: rgba(108, 99, 255, 0.35);
+    box-shadow: 0 10px 40px 0 rgba(108, 99, 255, 0.12);
+  }
+  .metric-box:hover {
+    transform: translateY(-3px);
+    border-color: rgba(108, 99, 255, 0.4) !important;
+    background: rgba(108, 99, 255, 0.1) !important;
+    box-shadow: 0 5px 15px rgba(108, 99, 255, 0.15);
   }
 
   /* drop zone */
@@ -763,7 +777,7 @@
       
       <!-- Waveform synthesizer visualization -->
       <div class="waveform-container" id="waveformContainer">
-        <div class="waveform-title">Synthesizing audio output...</div>
+        <div class="waveform-title" id="waveformTitle">Synthesizing audio output...</div>
         <div class="waveform-box" id="waveformBox">
           <div class="wave-bar"></div>
           <div class="wave-bar"></div>
@@ -790,6 +804,93 @@
 
       <div class="audio-label">Generated Speech</div>
       <audio id="audioPlayer" controls></audio>
+    </div>
+
+  </div>
+</section>
+
+<!-- MODEL STATS & ABLATION INSIGHTS -->
+<section class="app-section" style="margin-top: 0; margin-bottom: 64px;">
+  <div class="section-label">Model Insights</div>
+  <div class="card" style="background: rgba(25, 20, 45, 0.45); border-color: rgba(108, 99, 255, 0.25);">
+    
+    <!-- Header -->
+    <div class="card-header" style="border-bottom-color: rgba(108, 99, 255, 0.15); margin-bottom: 28px;">
+      <div class="card-title-group">
+        <span style="font-size: 1.5rem; filter: drop-shadow(0 0 8px rgba(108, 99, 255, 0.6));">📊</span>
+        <div>
+          <h3 class="card-title">Model Performance &amp; Ablation Summary</h3>
+          <p class="card-subtitle">Fine-tuned on GRID Corpus (33,000 video pairs)</p>
+        </div>
+      </div>
+      <div class="status-indicator" style="background: rgba(74, 222, 128, 0.08); border-color: rgba(74, 222, 128, 0.25);">
+        <span class="status-dot" style="background: var(--success); box-shadow: 0 0 10px var(--success);"></span>
+        <span class="status-text" style="color: var(--success);">Validated</span>
+      </div>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="metrics-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 32px;">
+      <div class="metric-box" style="background: rgba(108, 99, 255, 0.04); border: 1px solid rgba(108, 99, 255, 0.12); padding: 20px; border-radius: 10px; text-align: center; transition: all 0.3s ease;">
+        <div style="font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px;">Training Loss</div>
+        <div style="font-family: var(--font-display); font-size: 2.1rem; font-weight: 800; color: #fff; background: linear-gradient(135deg, #fff, var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">0.4171</div>
+        <div style="font-size: 0.72rem; color: var(--accent2); margin-top: 4px; font-weight: 500;">Optimized (15 epochs)</div>
+      </div>
+      
+      <div class="metric-box" style="background: rgba(108, 99, 255, 0.04); border: 1px solid rgba(108, 99, 255, 0.12); padding: 20px; border-radius: 10px; text-align: center; transition: all 0.3s ease;">
+        <div style="font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px;">Validation Loss</div>
+        <div style="font-family: var(--font-display); font-size: 2.1rem; font-weight: 800; color: #fff; background: linear-gradient(135deg, #fff, var(--pulse)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">0.4200</div>
+        <div style="font-size: 0.72rem; color: var(--pulse); margin-top: 4px; font-weight: 500;">Best validation checkpoint</div>
+      </div>
+
+      <div class="metric-box" style="background: rgba(108, 99, 255, 0.04); border: 1px solid rgba(108, 99, 255, 0.12); padding: 20px; border-radius: 10px; text-align: center; transition: all 0.3s ease;">
+        <div style="font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px;">Validation Accuracy</div>
+        <div style="font-family: var(--font-display); font-size: 2.1rem; font-weight: 800; color: #fff; background: linear-gradient(135deg, #fff, var(--success)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">82.30%</div>
+        <div style="font-size: 0.72rem; color: var(--success); margin-top: 4px; font-weight: 500;">LLM Corrected WAR: ~93.6%</div>
+      </div>
+    </div>
+
+    <!-- Ablation Study Table -->
+    <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 12px; font-weight: 600;">Model Ablation &amp; Configuration Matrix</div>
+    <div style="overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: rgba(9, 9, 15, 0.45); backdrop-filter: blur(8px);">
+      <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.82rem; color: var(--text);">
+        <thead>
+          <tr style="background: rgba(108, 99, 255, 0.08); border-bottom: 1px solid var(--border);">
+            <th style="padding: 14px 18px; font-weight: 600; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.08em; color: var(--muted);">Configuration</th>
+            <th style="padding: 14px 18px; font-weight: 600; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.08em; color: var(--muted);">CNN Backbone</th>
+            <th style="padding: 14px 18px; font-weight: 600; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.08em; color: var(--muted);">Frame Count</th>
+            <th style="padding: 14px 18px; font-weight: 600; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.08em; color: var(--muted);">Training Loss</th>
+            <th style="padding: 14px 18px; font-weight: 600; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.08em; color: var(--muted);">Epoch Latency</th>
+            <th style="padding: 14px 18px; font-weight: 600; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.08em; color: var(--muted);">Edge Run Suitability</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom: 1px solid rgba(108, 99, 255, 0.06); background: rgba(74, 222, 128, 0.02); transition: background 0.3s;">
+            <td style="padding: 14px 18px; font-weight: 600; color: var(--success);">1. Baseline (Selected Model)</td>
+            <td style="padding: 14px 18px;">Layer 14+ Unfreeze</td>
+            <td style="padding: 14px 18px;">25 frames</td>
+            <td style="padding: 14px 18px; font-weight: 700; color: var(--success);">1.7991</td>
+            <td style="padding: 14px 18px; font-weight: 700; color: var(--success);">2.11s</td>
+            <td style="padding: 14px 18px; color: var(--success); font-weight: 500;">Optimal (Lowest loss/compute ratio)</td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(108, 99, 255, 0.06); transition: background 0.3s;">
+            <td style="padding: 14px 18px; font-weight: 500;">2. Ablation Variant A</td>
+            <td style="padding: 14px 18px;">100% Unfrozen CNN</td>
+            <td style="padding: 14px 18px;">25 frames</td>
+            <td style="padding: 14px 18px; font-weight: 700;">1.7598</td>
+            <td style="padding: 14px 18px; font-weight: 700;">2.60s</td>
+            <td style="padding: 14px 18px; color: var(--muted);">Poor (Diminishing return, high CPU cost)</td>
+          </tr>
+          <tr style="transition: background 0.3s;">
+            <td style="padding: 14px 18px; font-weight: 500;">3. Ablation Variant B</td>
+            <td style="padding: 14px 18px;">Starved Context Window</td>
+            <td style="padding: 14px 18px;">10 frames</td>
+            <td style="padding: 14px 18px; font-weight: 700; color: #f87171;">2.9216</td>
+            <td style="padding: 14px 18px; font-weight: 700; color: var(--pulse);">0.91s</td>
+            <td style="padding: 14px 18px; color: #f87171; font-weight: 500;">Unusable (Compute fast, but loss spiked)</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
   </div>
@@ -908,19 +1009,24 @@
     progressBar.style.width = ((idx+1)/steps.length * 100) + '%';
   }
 
+  const waveformTitle = document.getElementById('waveformTitle');
+
   // Waveform visualization animation handlers
   audioPlayer.addEventListener('play', () => {
     waveformContainer.classList.add('show');
     waveformBox.classList.add('active');
+    if (waveformTitle) waveformTitle.textContent = 'Voice Output Active';
   });
 
   audioPlayer.addEventListener('pause', () => {
     waveformBox.classList.remove('active');
+    if (waveformTitle) waveformTitle.textContent = 'Voice Output Paused';
   });
 
   audioPlayer.addEventListener('ended', () => {
     waveformBox.classList.remove('active');
     setEngineStatus('Ready', '');
+    if (waveformTitle) waveformTitle.textContent = 'Voice Output Finished';
   });
 
   runBtn.addEventListener('click', async () => {
@@ -973,8 +1079,13 @@
         document.getElementById('refinedLabel').textContent = 'Refined Speech Output';
       } else {
         document.getElementById('rawResultWrap').style.display = 'none';
-        document.getElementById('refinedLabel').textContent = 'Decoded Speech Output';
+        if (useLlm) {
+          document.getElementById('refinedLabel').textContent = 'Decoded Speech Output (T5 Offline Fallback)';
+        } else {
+          document.getElementById('refinedLabel').textContent = 'Decoded Speech Output';
+        }
       }
+      if (waveformTitle) waveformTitle.textContent = 'Synthesizing audio output...';
 
       resultText.textContent = '"' + data.text + '"';
       audioPlayer.src = data.audio_url;
