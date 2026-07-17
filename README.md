@@ -232,9 +232,8 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Run Flask Web Application
-Place your trained weights `lipreading_model.pth` in the root folder, then run:
+### 2. Run Lip Reading Inference CLI
+Place your trained weights `lipreading_model.pth` next to `inference.py`. Then, run the command-line test script on a sample video (e.g., `lbad8p.mpg` or `pgby4n.mpg`):
 ```bash
-python app.py
+python test_video.py lbad8p.mpg
 ```
-Open **http://localhost:5000** in your browser.

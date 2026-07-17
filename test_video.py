@@ -6,7 +6,7 @@ import torch
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 try:
-    from app import (
+    from inference import (
         LipReadingModel, 
         extract_lips, 
         transform, 
@@ -16,7 +16,7 @@ try:
         device
     )
 except ImportError as e:
-    print(f"Error: Could not import app modules. Make sure you run this script from the project folder. Detail: {e}")
+    print(f"Error: Could not import inference modules. Make sure you run this script from the project folder. Detail: {e}")
     sys.exit(1)
 
 def test_video(video_path, use_llm=True):

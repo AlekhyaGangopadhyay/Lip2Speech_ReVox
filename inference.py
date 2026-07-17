@@ -1,19 +1,12 @@
 import os
-import uuid
 import cv2
 import numpy as np
 import torch
 import torch.nn as nn
-from flask import Flask, request, jsonify, send_from_directory, render_template
-from flask_cors import CORS
 import pyttsx3
-import threading
 from torchvision import models, transforms
 
-
 # ─── Config ───────────────────────────────────────────────────────────────────
-UPLOAD_FOLDER  = "uploads"
-OUTPUT_FOLDER  = "outputs"
 MODEL_PATH     = "lipreading_model.pth"
 IMG_SIZE       = 112
 MAX_FRAMES     = 25
@@ -27,29 +20,12 @@ char_to_ix = {ch: i for i, ch in enumerate(GRID_VOCAB)}
 ix_to_char = {i: ch for i, ch in enumerate(GRID_VOCAB)}
 NUM_CLASSES = len(GRID_VOCAB)
 
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-app = Flask(__name__)
-CORS(app)
-app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024  # 200 MB
-
-# Fallback template loader in case user uploads index.html directly to root directory
-from jinja2 import ChoiceLoader, FileSystemLoader
-app.jinja_loader = ChoiceLoader([
-    FileSystemLoader("templates"),
-    FileSystemLoader(".")
-])
 
 # ─── Model ────────────────────────────────────────────────────────────────────
 class LipReadingModel(nn.Module):
     def __init__(self, num_classes=NUM_CLASSES):
         super(LipReadingModel, self).__init__()
-        # For offline local execution, initialize mobilenet_v2 with random weights.
-        # This prevents PyTorch from attempting to download ImageNet weights from the internet.
-        # Custom fine-tuned weights are loaded immediately after initialization using state_dict.
         try:
             mobilenet = models.mobilenet_v2(weights=None)
         except (AttributeError, TypeError):
@@ -58,9 +34,7 @@ class LipReadingModel(nn.Module):
         self.pool = nn.AdaptiveAvgPool2d((1, 1))
         
         # FINE-TUNING IMPROVEMENT: Unfreeze the final CNN blocks of MobileNetV2 (from block 14 onwards)
-        # This allows the CNN features to adapt from general ImageNet features to close-up mouth features.
         for name, param in self.feature_extractor.named_parameters():
-            # MobileNetV2 has 19 feature blocks; we unfreeze blocks 14 to 18 (top convolutional blocks)
             block_idx = int(name.split('.')[0]) if name.split('.')[0].isdigit() else 0
             if block_idx >= 14:
                 param.requires_grad = True
@@ -95,7 +69,7 @@ def get_model():
     if _model is None:
         if not os.path.exists(MODEL_PATH):
             raise FileNotFoundError(f"Model weights not found at '{MODEL_PATH}'. "
-                                    "Place your lipreading_model.pth next to app.py.")
+                                    "Place your lipreading_model.pth next to inference.py.")
         _model = LipReadingModel(num_classes=NUM_CLASSES).to(device)
         state = torch.load(MODEL_PATH, map_location=device)
         _model.load_state_dict(state)
@@ -208,7 +182,6 @@ def refine_text_with_llm(raw_text):
         valid_sentences = []
         for s in sentences:
             s_lower = s.lower()
-            # If the sentence is just repeating the prompt instructions, skip it or pull the text after the colon
             if "correct grammar" in s_lower or "spelling" in s_lower or "grammar and spelling" in s_lower:
                 if ":" in s:
                     after_colon = s.split(":", 1)[1].strip()
@@ -229,7 +202,7 @@ def refine_text_with_llm(raw_text):
         return raw_text
 
 def text_to_speech(text, out_path):
-    """Synthesise speech and save as WAV. Tries offline pyttsx3, falls back to gTTS in cloud/Docker."""
+    """Synthesise speech and save as WAV. Tries offline pyttsx3, falls back to gTTS."""
     try:
         engine = pyttsx3.init()
         engine.setProperty("rate", 150)
@@ -242,107 +215,8 @@ def text_to_speech(text, out_path):
         try:
             from gtts import gTTS
             tts = gTTS(text=text, lang='en')
-            # Save as mp3 or wav; gtts generates mp3. But we can save it as out_path (which ends in .wav) 
-            # and HTML5 audio player can play mp3 files named .wav just fine, or we can convert it. 
-            # To be simple and robust, saving as out_path is fine because browsers decode the actual audio bytes!
             tts.save(out_path)
             print("Successfully synthesized audio online using gTTS.")
         except Exception as online_err:
             print(f"Online TTS fallback failed: {online_err}")
             raise e
-
-
-# ─── Routes ───────────────────────────────────────────────────────────────────
-@app.route("/")
-def index():
-    return render_template("index.html")
-
-@app.route("/predict", methods=["POST"])
-def predict():
-    if "video" not in request.files:
-        return jsonify({"error": "No video file uploaded"}), 400
-
-    video_file = request.files["video"]
-    if video_file.filename == "":
-        return jsonify({"error": "Empty filename"}), 400
-
-    job_id = str(uuid.uuid4())[:8]
-    video_path = os.path.join(UPLOAD_FOLDER, f"{job_id}.mp4")
-    audio_path = os.path.join(OUTPUT_FOLDER, f"{job_id}.wav")
-    video_file.save(video_path)
-
-    # Check if T5 LLM is requested
-    use_llm = request.form.get("use_llm") == "true"
-
-    try:
-        # 1. Extract and preprocess lip frames
-        lips = extract_lips(video_path)
-        transformed_frames = []
-        for f in lips:
-            transformed_frames.append(transform(f))
-        tensor = torch.stack(transformed_frames).unsqueeze(0).to(device)
-
-        # 2. Run model
-        model = get_model()
-        with torch.no_grad():
-            logits = model(tensor)
-
-        # 3. Decode
-        predicted_text = decode_prediction(logits)
-
-        # 4. Optional LLM Refinement
-        refined_text = predicted_text
-        llm_used_successfully = False
-        if use_llm:
-            t5_m, _ = get_t5()
-            if t5_m is not None:
-                refined_text = refine_text_with_llm(predicted_text)
-                llm_used_successfully = True
-            else:
-                refined_text = predicted_text
-                llm_used_successfully = False
-
-        text_to_speak = refined_text if refined_text else predicted_text
-        if not text_to_speak:
-            text_to_speak = "(no speech detected)"
-
-        # 5. TTS
-        text_to_speech(text_to_speak, audio_path)
-
-        return jsonify({
-            "raw_text": predicted_text if predicted_text else "(no speech detected)",
-            "text": text_to_speak,
-            "audio_url": f"/audio/{job_id}.wav",
-            "llm_used": llm_used_successfully
-        })
-
-    except FileNotFoundError as e:
-        return jsonify({"error": str(e)}), 503
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({"error": f"Inference failed: {str(e)}"}), 500
-    finally:
-        try:
-            os.remove(video_path)
-        except Exception:
-            pass
-
-@app.route("/audio/<filename>")
-def serve_audio(filename):
-    return send_from_directory(OUTPUT_FOLDER, filename)
-
-@app.route("/static/logo.png")
-def serve_logo():
-    if os.path.exists("static/logo.png"):
-        return send_from_directory("static", "logo.png")
-    return send_from_directory(".", "logo.png")
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    print("=" * 60)
-    print(f"  Lip2Speech Server  —  http://localhost:{port}")
-    print(f"  Device : {device}")
-    print(f"  Model  : {MODEL_PATH}")
-    print("=" * 60)
-    app.run(debug=False, host="0.0.0.0", port=port)
